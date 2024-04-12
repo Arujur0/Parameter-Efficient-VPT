@@ -121,13 +121,25 @@ class Trainer():
         return loss, outputs
 
     def get_input(self, data):
-        if not isinstance(data["image"], torch.Tensor):
+        if not isinstance(data['image'], torch.Tensor):
             for k, v in data.items():
                 data[k] = torch.from_numpy(v)
-
-        inputs = data["image"].float()
-        labels = data["label"]
+        inputs = data['image'].float()
+        labels = data['label']
         return inputs, labels
+
+    def get_cls_wts(self, train_loader):
+        class_counts = torch.zeros(100)
+        train_dataset = train_loader.dataset
+        for _, index in train_dataset:
+            class_counts[index] += 1
+
+        # Calculate class weights
+        class_weights = 1. / class_counts
+        class_weights /= class_weights.sum()
+
+        # Create a WeightedRandomSampler to use with DataLoader
+        return class_weights.tolist()
 
     def train_classifier(self, train_loader, val_loader, test_loader):
         """
@@ -149,8 +161,8 @@ class Trainer():
         data_time = AverageMeter('Data', ':6.3f')
 
         self.cls_weights = train_loader.dataset.get_class_weights(
-            self.cfg.DATA.CLASS_WEIGHTS_TYPE)
-        # logger.info(f"class weights: {self.cls_weights}")
+            self.cfg.DATA.CLASS_WEIGHTS_TYPE) #self.get_cls_wts(train_loader)
+        #logger.info(f"class weights: {self.cls_weights}")
         patience = 0  # if > self.cfg.SOLVER.PATIENCE, stop training
 
         for epoch in range(total_epoch):
@@ -159,7 +171,7 @@ class Trainer():
             batch_time.reset()
             data_time.reset()
 
-            lr = self.scheduler.get_lr()[0]
+            lr = 0.0001 if self.scheduler == None else self.scheduler.get_lr()[0] 
             logger.info(
                 "Training {} / {} epoch, with learning rate {}".format(
                     epoch + 1, total_epoch, lr
@@ -170,7 +182,6 @@ class Trainer():
             self.model.train()
 
             end = time.time()
-
             for idx, input_data in enumerate(train_loader):
                 if self.cfg.DBG and idx == 20:
                     # if debugging, only need to see the first few iterations
@@ -218,7 +229,8 @@ class Trainer():
                     data_time.avg, batch_time.avg)
                 + "average train loss: {:.4f}".format(losses.avg))
              # update lr, scheduler.step() must be called after optimizer.step() according to the docs: https://pytorch.org/docs/stable/optim.html#how-to-adjust-learning-rate  # noqa
-            self.scheduler.step()
+            if self.scheduler:
+                 self.scheduler.step()
 
             # Enable eval mode
             self.model.eval()
@@ -228,9 +240,9 @@ class Trainer():
             # eval at each epoch for single gpu training
             self.evaluator.update_iteration(epoch)
             self.eval_classifier(val_loader, "val", epoch == total_epoch - 1)
-            if test_loader is not None:
-                self.eval_classifier(
-                    test_loader, "test", epoch == total_epoch - 1)
+            # if test_loader is not None:
+            #     self.eval_classifier(
+            #         test_loader, "test", epoch == total_epoch - 1)
 
             # check the patience
             t_name = "val_" + val_loader.dataset.name
@@ -251,13 +263,13 @@ class Trainer():
                 logger.info("No improvement. Breaking out of loop.")
                 break
 
-        # save the last checkpoints
-        # if self.cfg.MODEL.SAVE_CKPT:
-        #     Checkpointer(
-        #         self.model,
-        #         save_dir=self.cfg.OUTPUT_DIR,
-        #         save_to_disk=True
-        #     ).save("last_model")
+        #save the last checkpoints
+            if self.cfg.MODEL.SAVE_CKPT:
+                Checkpointer(
+                    self.model,
+                    save_dir=self.cfg.OUTPUT_DIR,
+                    save_to_disk=True
+                ).save("model_v6")
 
     @torch.no_grad()
     def save_prompt(self, epoch):
@@ -280,6 +292,7 @@ class Trainer():
         losses = AverageMeter('Loss', ':.4e')
 
         log_interval = self.cfg.SOLVER.LOG_EVERY_N
+        #data_loader.dataset.name = f"CIFAR100_{dataloader.dataset}"
         test_name = prefix + "_" + data_loader.dataset.name
         total = len(data_loader)
 
