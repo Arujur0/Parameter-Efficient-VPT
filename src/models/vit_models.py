@@ -88,7 +88,10 @@ class ViT(nn.Module):
 
         elif transfer_type == "linear" or transfer_type == "side":
             for k, p in self.enc.named_parameters():
-                p.requires_grad = False
+                if 'soft' in k or 'prompt_projection' in k or 'leng' in k or 'partition' in k:
+                    p.requires_grad = True
+                else:
+                    p.requires_grad = False
 
         elif transfer_type == "tinytl-bias":
             for k, p in self.enc.named_parameters():
@@ -173,7 +176,6 @@ class ViT(nn.Module):
         if self.froze_enc and self.enc.training:
             self.enc.eval()
         x = self.enc(x)  # batch_size x self.feat_dim
-
         if self.side is not None:
             alpha_squashed = torch.sigmoid(self.side_alpha)
             x = alpha_squashed * x + (1 - alpha_squashed) * side_output
