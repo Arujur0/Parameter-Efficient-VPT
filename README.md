@@ -65,6 +65,8 @@ Link to VIT B-16: [VIT B-16.pt](https://storage.googleapis.com/vit_models/imagen
 
 
 ### Training
+Training was run on a single laptop grade RTX3070Ti GPU with a 8GB VRAM. Training time generally varies based on the prompt size, but on average takes 3hrs for 60 epochs for a prompt embedding size of 50.
+
 To run the training script ensure to update the config yaml file in the vpt\configs\linear folder respective to the dataset to be trained on. The modifications to be made are straight forward. Just change the datapath to the root directory of the dataset and comment out the TOTAL_EPOCH==0 configuration. Also if needed the hyper parameters such as the base learning rate and weight decay can be changed. Then from the root directory simply run:
 
 ```
@@ -72,7 +74,6 @@ To run the training script ensure to update the config yaml file in the vpt\conf
 python vpt\train.py --config-file "path\to\root\vpt\configs\linear\dataset_name.yaml"
 
 ```
-Here dataset_name.yaml corresponds to one of the four and should be one of {'cub', 'dogs', 'flowers', 'nabirds'}.
 ### Evaluation
 The same file can be run to evaluate the benchmarked models. Ensure to update the prompt size in the config.py file in vpt\src\configs.  Simply un-comment out the TOTAL_EPOCH==0 configuration (if already commented from the previous step). and run the following command:
 
@@ -81,3 +82,5 @@ The same file can be run to evaluate the benchmarked models. Ensure to update th
 python vpt\train.py --config-file "path\to\root\vpt\configs\linear\dataset_name.yaml"
 
 ```
+
+For both training and evaluation dataset_name.yaml corresponds to one of the four and should be one of {'cub', 'dogs', 'flowers', 'nabirds'}.
