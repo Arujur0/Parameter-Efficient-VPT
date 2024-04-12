@@ -2,11 +2,13 @@ _BASE_: "../base-linear.yaml"
 RUN_N_TIMES: 1
 DATA:
   NAME: "StanfordDogs"
-  DATAPATH: ""  #TODO: need to specify here
+  DATAPATH: "Datasets\\StanfordDogs"  #TODO: need to specify here
   NUMBER_CLASSES: 120
   MULTILABEL: False
 MODEL:
   TYPE: "vit"
+  WEIGHT_PATH: "vpt\\output\\StanfordDogs\\sup_vitb16\\lr0.5_wd0.001\\run1\\model_v6.pth"
 SOLVER:
   BASE_LR: 0.001
   WEIGHT_DECAY: 0.0001
+  TOTAL_EPOCH: 0

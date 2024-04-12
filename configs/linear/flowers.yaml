@@ -2,11 +2,13 @@ _BASE_: "../base-linear.yaml"
 RUN_N_TIMES: 1
 DATA:
   NAME: "OxfordFlowers"
-  DATAPATH: ""  #TODO: need to specify here
+  DATAPATH: "Datasets\\OxfordFlowers"  #TODO: need to specify here
   NUMBER_CLASSES: 102
   MULTILABEL: False
 MODEL:
   TYPE: "vit"
+  WEIGHT_PATH: "vpt\\output\\OxfordFlowers\\sup_vitb16\\lr1.0_wd0.01\\run1\\model_v6.pth"
 SOLVER:
   BASE_LR: 0.001
   WEIGHT_DECAY: 0.0001
+  TOTAL_EPOCH: 0

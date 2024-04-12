@@ -2,11 +2,14 @@ _BASE_: "../base-linear.yaml"
 RUN_N_TIMES: 1
 DATA:
   NAME: "CUB"
-  DATAPATH: ""  #TODO: need to specify here
+  DATAPATH: "Datasets\\CUB\\CUB_200_2011"  #TODO: need to specify here
   NUMBER_CLASSES: 200
   MULTILABEL: False
 MODEL:
   TYPE: "vit"
+  WEIGHT_PATH: "vpt\\output\\CUB\\sup_vitb16\\lr0.0009_wd0.01\\run1\\model_v6.pth"
+  PROMPT_SIZE: 10
 SOLVER:
   BASE_LR: 0.1
   WEIGHT_DECAY: 0.01
+  TOTAL_EPOCH: 0
