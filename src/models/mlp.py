@@ -47,7 +47,6 @@ class MLP(nn.Module):
             if dropout != 0:
                 projection_modulelist.append(nn.Dropout(dropout))
             projection_prev_dim = mlp_dim
-
         self.projection = nn.Sequential(*projection_modulelist)
         self.last_layer = nn.Linear(projection_prev_dim, last_dim)
         nn.init.kaiming_normal_(self.last_layer.weight, a=0, mode='fan_out')
