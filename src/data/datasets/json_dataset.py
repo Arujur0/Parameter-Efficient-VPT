@@ -8,7 +8,7 @@ import torch.utils.data
 import torchvision as tv
 import numpy as np
 from collections import Counter
-
+import random
 from ..transforms import get_transforms
 from ...utils import logging
 from ...utils.io_utils import read_json
@@ -66,7 +66,10 @@ class JSONDataset(torch.utils.data.Dataset):
             cont_id = self._class_id_cont_id[cls_id]
             im_path = os.path.join(img_dir, img_name)
             self._imdb.append({"im_path": im_path, "class": cont_id})
-
+        if self._split == 'train':
+            reduced_size = int(len(self._imdb) * 0.6)
+            #data_list = random.sample(data_list, reduced_size) 
+            self._imdb = random.sample(self._imdb, reduced_size)
         logger.info("Number of images: {}".format(len(self._imdb)))
         logger.info("Number of classes: {}".format(len(self._class_ids)))
 
@@ -172,3 +175,11 @@ class NabirdsDataset(JSONDataset):
     def get_imagedir(self):
         return os.path.join(self.data_dir, "images")
 
+class CiFar100Dataset(JSONDataset):
+    """CIFAR 100 dataset."""
+
+    def __init__(self, cfg, split):
+        super(CiFar100Dataset, self).__init__(cfg, split)
+
+    def get_imagedir(self):
+        return self.data_dir
