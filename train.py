@@ -23,7 +23,7 @@ from src.utils.file_io import PathManager
 from launch import default_argument_parser, logging_train_setup
 warnings.filterwarnings("ignore")
 
-
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 def setup(args):
     """
     Create configs and perform basic setups.
@@ -33,7 +33,7 @@ def setup(args):
     cfg.merge_from_list(args.opts)
 
     # setup dist
-    cfg.DIST_INIT_PATH = "tcp://{}:12399".format(os.environ["SLURMD_NODENAME"])
+    #cfg.DIST_INIT_PATH = "tcp://{}:12399".format(os.environ["SLURMD_NODENAME"])
 
     # setup output dir
     # output_dir / data_name / feature_name / lr_wd / run1
@@ -55,9 +55,9 @@ def setup(args):
             break
         else:
             count += 1
-    if count > cfg.RUN_N_TIMES:
-        raise ValueError(
-            f"Already run {cfg.RUN_N_TIMES} times for {output_folder}, no need to run more")
+    # if count > cfg.RUN_N_TIMES:
+    #     raise ValueError(
+    #         f"Already run {cfg.RUN_N_TIMES} times for {output_folder}, no need to run more")
 
     cfg.freeze()
     return cfg
@@ -102,12 +102,17 @@ def train(cfg, args):
     train_loader, val_loader, test_loader = get_loaders(cfg, logger)
     logger.info("Constructing models...")
     model, cur_device = build_model(cfg)
-
     logger.info("Setting up Evalutator...")
     evaluator = Evaluator()
     logger.info("Setting up Trainer...")
+    # for name, params in model.named_parameters():
+    #     if 'head' in name:
+    #         print(params)
+    #     if 'soft.l' in name:
+    #         print(params)
+    #     else:
+    #         params.requires_grad = False
     trainer = Trainer(cfg, model, evaluator, cur_device)
-
     if train_loader:
         trainer.train_classifier(train_loader, val_loader, test_loader)
     else:
@@ -119,14 +124,15 @@ def train(cfg, args):
 
 def main(args):
     """main function to call from workflow"""
-
-    # set up cfg and args
+   # print(sys.path)
+    #setup cfg and args
     cfg = setup(args)
 
-    # Perform training.
+    #Perform training.
     train(cfg, args)
 
 
 if __name__ == '__main__':
+    torch.cuda.empty_cache()
     args = default_argument_parser().parse_args()
     main(args)
