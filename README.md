@@ -6,17 +6,6 @@ This repository contains the code for the Parameter Efficient Prompt Tuning of V
 
 This code for running the Dynamic Residual VPT (Dynamic Rs-VPT) is derived from the [Visual Prompt Tuning Repo](https://github.com/KMnP/vpt), where necessary changes were added for a modular prompt embedding to the original Vision Transformer, a residual reparameterization of the prompt projections, and a prompt paritioning block which splits the prompts into a length variable prefix and suffix.
 
-Link to VIT B-16: [256x256_GAN_checkpoint.pt](https://drive.google.com/file/d/1qgfyvTK-pO4g3QmtEYrJwkfNq7ql6hra/view?usp=share_link)
-This model is trained on 4 of the 5 Fine Graine Visual Categorization Tasks described in the baseline paper. This model was trained on average for 60-90 epochs depending on the dataset. Links to the trained model checkpoints are provided below, to run the evaluation script effectively it is recommended to download them and place them into the appropriate dataset folder in vpt/output:
-
-Link to trained CUB-200 model: [cub.pth](https://drive.google.com/file/d/1zgdde1ud6goFQEeih64YTbdYbXRXFwB-/view?usp=sharing)
-
-Link to trained Oxford Flowers model: [flowers.pth](https://drive.google.com/file/d/1pzaqEhIM3KDzGL_JukgPzNBrbAYZkxj6/view?usp=sharing)
-
-Link to trained Stanford Dogs model: [dogs.pth](https://drive.google.com/file/d/1jFCZMkmZtUR_TPHi3S8SgH8vctOUIYtS/view?usp=sharing)
-
-Link to trained NA Birds model: [birds.pth](https://drive.google.com/file/d/1YLowRhSP44vnxCj0GatWHd5te3XPtPaa/view?usp=sharing)
-
 You may also want to run the following command to download the required packages before getting started.
 ```
 conda env create -f environment.yml
@@ -57,6 +46,22 @@ See Table 8 in the Appendix for dataset details.
   - [Oxford Flowers](https://www.robots.ox.ac.uk/~vgg/data/flowers/)
 
   - [Stanford Dogs](http://vision.stanford.edu/aditya86/ImageNetDogs/main.html)
+
+
+### Model Preparation
+This model is trained on 4 of the 5 Fine Grained Visual Categorization Tasks described in the baseline paper. This model was trained on average for 60-90 epochs depending on the dataset. Links to the trained model checkpoints are provided below, to run the evaluation script effectively it is recommended to download them and place them into the appropriate dataset folder in vpt/output:
+
+Link to trained CUB-200 model: [cub.pth](https://drive.google.com/file/d/1zgdde1ud6goFQEeih64YTbdYbXRXFwB-/view?usp=sharing)
+
+Link to trained Oxford Flowers model: [flowers.pth](https://drive.google.com/file/d/1pzaqEhIM3KDzGL_JukgPzNBrbAYZkxj6/view?usp=sharing)
+
+Link to trained Stanford Dogs model: [dogs.pth](https://drive.google.com/file/d/1jFCZMkmZtUR_TPHi3S8SgH8vctOUIYtS/view?usp=sharing)
+
+Link to trained NA Birds model: [birds.pth](https://drive.google.com/file/d/1YLowRhSP44vnxCj0GatWHd5te3XPtPaa/view?usp=sharing)
+
+Add the following model to the model_weights folder.
+
+Link to VIT B-16: [VIT B-16.pt](https://storage.googleapis.com/vit_models/imagenet21k/ViT-B_16.npz)
 
 
 ### Training
