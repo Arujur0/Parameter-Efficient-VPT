@@ -5,6 +5,8 @@ models for vits, borrowed from
 https://github.com/jeonsworld/ViT-pytorch/blob/main/models/modeling_resnet.py
 https://github.com/jeonsworld/ViT-pytorch/blob/main/models/modeling.py
 """
+import sys
+sys.path.insert(0, './vpt')
 import copy
 import logging
 import math
@@ -15,12 +17,13 @@ from turtle import forward
 import torch
 import torch.nn as nn
 import numpy as np
-
+import random
 from torch.nn import Dropout, Softmax, Linear, Conv2d, LayerNorm
 from torch.nn.modules.utils import _pair
 from scipy import ndimage
 
-from ...configs import vit_configs as configs
+from src.configs import vit_configs as configs
+from src.configs import config as config
 
 
 logger = logging.getLogger(__name__)
@@ -40,6 +43,7 @@ CONFIGS = {
     # 'R50-ViT-B_16': configs.get_r50_b16_config(),
 }
 
+cfg = config.get_cfg()
 
 ATTENTION_Q = "MultiHeadDotProductAttention_1/query"
 ATTENTION_K = "MultiHeadDotProductAttention_1/key"
@@ -136,6 +140,28 @@ class Mlp(nn.Module):
         x = self.dropout(x)
         return x
 
+class SoftPrompter(nn.Module):
+    def __init__(self, embed_dim, prompt_size, random_range=1.0):
+        super(SoftPrompter, self).__init__()
+        self.em = embed_dim
+        self.leng = torch.tensor(float(prompt_size)) #random.randint(, self.em// 3)
+        self.partition = nn.Parameter(torch.tensor(float(random.randint(0, self.leng.item()))))
+        self.prompt_projection = nn.Parameter(torch.FloatTensor(1, int(self.leng.item()), self.em).uniform_(-random_range, random_range))
+        self.reparam_prompts = nn.Sequential(nn.Linear(self.em, 32), nn.ReLU(), nn.Linear(32, self.em), nn.LayerNorm(self.em))
+        self.prompt_drop = nn.Dropout()
+
+    def forward(self, x):
+        self.reparamed = self.reparam_prompts(self.prompt_projection)
+        dropped_params = self.prompt_drop(self.reparamed).expand(x.shape[0], -1, -1)
+        dropped_params = dropped_params + self.prompt_projection
+        
+        p = int(self.partition.item())
+        part_1 = dropped_params[:, :p, :]
+        part_2 = dropped_params[:, p+1:,: ]
+
+        x1 = torch.cat([part_1, x, part_2], dim=1)
+        #x1 = torch.cat([dropped_params, x], dim=1)
+        return x1    
 
 class Embeddings(nn.Module):
     """Construct the embeddings from patch, position embeddings.
@@ -178,8 +204,8 @@ class Embeddings(nn.Module):
         x = x.flatten(2)
         x = x.transpose(-1, -2)
         x = torch.cat((cls_tokens, x), dim=1)
-
-        embeddings = x + self.position_embeddings
+        positions = self.position_embeddings.expand(B, -1, -1)
+        embeddings = x + positions #self.position_embeddings
         embeddings = self.dropout(embeddings)
         return embeddings
 
@@ -208,15 +234,15 @@ class Block(nn.Module):
     def load_from(self, weights, n_block):
         ROOT = f"Transformer/encoderblock_{n_block}"
         with torch.no_grad():
-            query_weight = np2th(weights[pjoin(ROOT, ATTENTION_Q, "kernel")]).view(self.hidden_size, self.hidden_size).t()
-            key_weight = np2th(weights[pjoin(ROOT, ATTENTION_K, "kernel")]).view(self.hidden_size, self.hidden_size).t()
-            value_weight = np2th(weights[pjoin(ROOT, ATTENTION_V, "kernel")]).view(self.hidden_size, self.hidden_size).t()
-            out_weight = np2th(weights[pjoin(ROOT, ATTENTION_OUT, "kernel")]).view(self.hidden_size, self.hidden_size).t()
+            query_weight = np2th(weights[pjoin(ROOT, ATTENTION_Q, "kernel").replace('\\', '/')]).view(self.hidden_size, self.hidden_size).t()
+            key_weight = np2th(weights[pjoin(ROOT, ATTENTION_K, "kernel").replace('\\', '/')]).view(self.hidden_size, self.hidden_size).t()
+            value_weight = np2th(weights[pjoin(ROOT, ATTENTION_V, "kernel").replace('\\', '/')]).view(self.hidden_size, self.hidden_size).t()
+            out_weight = np2th(weights[pjoin(ROOT, ATTENTION_OUT, "kernel").replace('\\', '/')]).view(self.hidden_size, self.hidden_size).t()
 
-            query_bias = np2th(weights[pjoin(ROOT, ATTENTION_Q, "bias")]).view(-1)
-            key_bias = np2th(weights[pjoin(ROOT, ATTENTION_K, "bias")]).view(-1)
-            value_bias = np2th(weights[pjoin(ROOT, ATTENTION_V, "bias")]).view(-1)
-            out_bias = np2th(weights[pjoin(ROOT, ATTENTION_OUT, "bias")]).view(-1)
+            query_bias = np2th(weights[pjoin(ROOT, ATTENTION_Q, "bias").replace('\\', '/')]).view(-1)
+            key_bias = np2th(weights[pjoin(ROOT, ATTENTION_K, "bias").replace('\\', '/')]).view(-1)
+            value_bias = np2th(weights[pjoin(ROOT, ATTENTION_V, "bias").replace('\\', '/')]).view(-1)
+            out_bias = np2th(weights[pjoin(ROOT, ATTENTION_OUT, "bias").replace('\\', '/')]).view(-1)
 
             self.attn.query.weight.copy_(query_weight)
             self.attn.key.weight.copy_(key_weight)
@@ -227,20 +253,20 @@ class Block(nn.Module):
             self.attn.value.bias.copy_(value_bias)
             self.attn.out.bias.copy_(out_bias)
 
-            mlp_weight_0 = np2th(weights[pjoin(ROOT, FC_0, "kernel")]).t()
-            mlp_weight_1 = np2th(weights[pjoin(ROOT, FC_1, "kernel")]).t()
-            mlp_bias_0 = np2th(weights[pjoin(ROOT, FC_0, "bias")]).t()
-            mlp_bias_1 = np2th(weights[pjoin(ROOT, FC_1, "bias")]).t()
+            mlp_weight_0 = np2th(weights[pjoin(ROOT, FC_0, "kernel").replace('\\', '/')]).t()
+            mlp_weight_1 = np2th(weights[pjoin(ROOT, FC_1, "kernel").replace('\\', '/')]).t()
+            mlp_bias_0 = np2th(weights[pjoin(ROOT, FC_0, "bias").replace('\\', '/')]).t()
+            mlp_bias_1 = np2th(weights[pjoin(ROOT, FC_1, "bias").replace('\\', '/')]).t()
 
             self.ffn.fc1.weight.copy_(mlp_weight_0)
             self.ffn.fc2.weight.copy_(mlp_weight_1)
             self.ffn.fc1.bias.copy_(mlp_bias_0)
             self.ffn.fc2.bias.copy_(mlp_bias_1)
 
-            self.attention_norm.weight.copy_(np2th(weights[pjoin(ROOT, ATTENTION_NORM, "scale")]))
-            self.attention_norm.bias.copy_(np2th(weights[pjoin(ROOT, ATTENTION_NORM, "bias")]))
-            self.ffn_norm.weight.copy_(np2th(weights[pjoin(ROOT, MLP_NORM, "scale")]))
-            self.ffn_norm.bias.copy_(np2th(weights[pjoin(ROOT, MLP_NORM, "bias")]))
+            self.attention_norm.weight.copy_(np2th(weights[pjoin(ROOT, ATTENTION_NORM, "scale").replace('\\', '/')]))
+            self.attention_norm.bias.copy_(np2th(weights[pjoin(ROOT, ATTENTION_NORM, "bias").replace('\\', '/')]))
+            self.ffn_norm.weight.copy_(np2th(weights[pjoin(ROOT, MLP_NORM, "scale").replace('\\', '/')]))
+            self.ffn_norm.bias.copy_(np2th(weights[pjoin(ROOT, MLP_NORM, "bias").replace('\\', '/')]))
 
 
 class Encoder(nn.Module):
@@ -286,12 +312,16 @@ class Transformer(nn.Module):
     def __init__(self, config, img_size, vis):
         super(Transformer, self).__init__()
         self.embeddings = Embeddings(config, img_size=img_size)
+        self.soft = SoftPrompter(config.hidden_size, cfg.MODEL.PROMPT_SIZE)
         self.encoder = Encoder(config, vis)
 
     def forward(self, input_ids):
         embedding_output = self.embeddings(input_ids)
+        embedding_output = self.soft(embedding_output)
 
         encoded, attn_weights = self.encoder(embedding_output)
+
+        encoded +=embedding_output
         return encoded, attn_weights
     
     def forward_cls_layerwise(self, input_ids):
@@ -317,7 +347,7 @@ class VisionTransformer(nn.Module):
     def forward(self, x, vis=False):
         x, attn_weights = self.transformer(x)
         logits = self.head(x[:, 0])
-
+        #print(logits.shape)
         if not vis:
             return logits
         return logits, attn_weights # attn_weights: num_layers, B, num_head, num_patches, num_patches
@@ -441,18 +471,18 @@ class PreActBottleneck(nn.Module):
         return y
 
     def load_from(self, weights, n_block, n_unit):
-        conv1_weight = np2th(weights[pjoin(n_block, n_unit, "conv1/kernel")], conv=True)
-        conv2_weight = np2th(weights[pjoin(n_block, n_unit, "conv2/kernel")], conv=True)
-        conv3_weight = np2th(weights[pjoin(n_block, n_unit, "conv3/kernel")], conv=True)
+        conv1_weight = np2th(weights[pjoin(n_block, n_unit, "conv1/kernel").replace('\\', '/')], conv=True)
+        conv2_weight = np2th(weights[pjoin(n_block, n_unit, "conv2/kernel").replace('\\', '/')], conv=True)
+        conv3_weight = np2th(weights[pjoin(n_block, n_unit, "conv3/kernel").replace('\\', '/')], conv=True)
 
-        gn1_weight = np2th(weights[pjoin(n_block, n_unit, "gn1/scale")])
-        gn1_bias = np2th(weights[pjoin(n_block, n_unit, "gn1/bias")])
+        gn1_weight = np2th(weights[pjoin(n_block, n_unit, "gn1/scale").replace('\\', '/')])
+        gn1_bias = np2th(weights[pjoin(n_block, n_unit, "gn1/bias").replace('\\', '/')])
 
-        gn2_weight = np2th(weights[pjoin(n_block, n_unit, "gn2/scale")])
-        gn2_bias = np2th(weights[pjoin(n_block, n_unit, "gn2/bias")])
+        gn2_weight = np2th(weights[pjoin(n_block, n_unit, "gn2/scale").replace('\\', '/')])
+        gn2_bias = np2th(weights[pjoin(n_block, n_unit, "gn2/bias").replace('\\', '/')])
 
-        gn3_weight = np2th(weights[pjoin(n_block, n_unit, "gn3/scale")])
-        gn3_bias = np2th(weights[pjoin(n_block, n_unit, "gn3/bias")])
+        gn3_weight = np2th(weights[pjoin(n_block, n_unit, "gn3/scale").replace('\\', '/')])
+        gn3_bias = np2th(weights[pjoin(n_block, n_unit, "gn3/bias").replace('\\', '/')])
 
         self.conv1.weight.copy_(conv1_weight)
         self.conv2.weight.copy_(conv2_weight)
@@ -468,9 +498,9 @@ class PreActBottleneck(nn.Module):
         self.gn3.bias.copy_(gn3_bias.view(-1))
 
         if hasattr(self, 'downsample'):
-            proj_conv_weight = np2th(weights[pjoin(n_block, n_unit, "conv_proj/kernel")], conv=True)
-            proj_gn_weight = np2th(weights[pjoin(n_block, n_unit, "gn_proj/scale")])
-            proj_gn_bias = np2th(weights[pjoin(n_block, n_unit, "gn_proj/bias")])
+            proj_conv_weight = np2th(weights[pjoin(n_block, n_unit, "conv_proj/kernel").replace('\\', '/')], conv=True)
+            proj_gn_weight = np2th(weights[pjoin(n_block, n_unit, "gn_proj/scale").replace('\\', '/')])
+            proj_gn_bias = np2th(weights[pjoin(n_block, n_unit, "gn_proj/bias").replace('\\', '/')])
 
             self.downsample.weight.copy_(proj_conv_weight)
             self.gn_proj.weight.copy_(proj_gn_weight.view(-1))
@@ -514,3 +544,20 @@ class ResNetV2(nn.Module):
         x = self.body(x)
         return x
 
+if __name__ == '__main__':
+
+    model_type = "sup_vitb16"#cfg.MODEL.TYPE
+    model = VisionTransformer(model_type,img_size=32, num_classes=-1)
+    input = torch.randn(8, 3, 32, 32)
+    output = model(input)
+    for name, params in model.named_parameters():
+        if 'soft' in name or 'head' in name or 'prompt_projection' in name or 'leng' in name:
+            params.requires_grad = True
+        else:
+            params.requires_grad = False
+    for name, params in model.named_parameters():
+        if 'soft' in name or 'head' in name or 'prompt_projection' in name or 'leng' in name:
+            print(params.requires_grad, " for ", name)
+        else:
+            print("No grad for: ", name)
+    print(model)
